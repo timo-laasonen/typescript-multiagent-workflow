@@ -1,0 +1,75 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-agent
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: knowledge-agent
+  template:
+    metadata:
+      labels:
+        app: knowledge-agent
+    spec:
+      serviceAccountName: knowledge-agent
+      automountServiceAccountToken: false
+      containers:
+        - name: knowledge-agent
+          image: image-registry.example/knowledge-agent:1.0.0
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          envFrom:
+            - configMapRef:
+                name: knowledge-agent-config
+
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: knowledge-agent-secrets
+                  key: OPENAI_API_KEY
+
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: knowledge-agent-secrets
+                  key: DATABASE_URL
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
